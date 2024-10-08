@@ -1,5 +1,3 @@
-import "./style.css";
-
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 if (!canvas) {
   throw new Error("Canvas not found");

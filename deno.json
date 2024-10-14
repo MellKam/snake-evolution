@@ -1,6 +1,7 @@
 {
 	"tasks": {
-		"dev": "deno run -A --node-modules-dir npm:vite@5.4.8"
+		"dev": "deno run -A --node-modules-dir npm:vite@5.4.8",
+		"build": "deno run -A --node-modules-dir npm:vite@5.4.8 build"
 	},
 	"imports": {
 		"vite": "npm:vite@5.4.8",

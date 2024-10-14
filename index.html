@@ -4,28 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Snake evolution</title>
-    <style>
-    body {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100dvh;
-    }
-    
-    /** change body background when dark theme is preferred */
-    @media (prefers-color-scheme: dark) {
-      body {
-        background-color: #333;
-        color: #fff;
-      }
-    }
-    </style>
   </head>
   <body>
-    <canvas id="game"></canvas>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,0 +1,20 @@
+{
+	"tasks": {
+		"dev": "deno run -A --node-modules-dir npm:vite@5.4.8"
+	},
+	"imports": {
+		"vite": "npm:vite@5.4.8",
+		"vite-plugin-solid": "npm:vite-plugin-solid@2.10.2",
+		"solid-js": "npm:solid-js@1.9.2",
+		"tailwindcss": "npm:tailwindcss@next",
+		"@tailwindcss/vite": "npm:@tailwindcss/vite@next",
+		"csstype": "npm:csstype"
+	},
+	"compilerOptions": {
+		"lib": ["dom", "esnext"],
+		"noUncheckedIndexedAccess": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "solid-js"
+	},
+	"nodeModulesDir": "auto"
+}

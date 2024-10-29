@@ -176,7 +176,6 @@ export const Playback = (props: {
                 >
                   <span class="text-black/50">{index() + 1}</span>
                   {DirectionName[direction]}
-                  ({props.genome.ages[index()]})
                 </button>
               </li>
             )}

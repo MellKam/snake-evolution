@@ -1,207 +1,194 @@
+import type { Direction } from "./game.ts";
 import { getRandomDirection } from "./game.ts";
+import { getBackwardDirection } from "./game.ts";
 import { createRandomSnakePath } from "./game.ts";
 import { Game } from "./game.ts";
+import { Vector2 } from "./utils.ts";
 import { choseRandomIndexByProbability } from "./utils.ts";
 
 const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 
 function insertIntoUint8Array(
-  arr: Uint8Array,
-  index: number,
-  element: number,
+	arr: Uint8Array,
+	index: number,
+	element: number
 ): Uint8Array {
-  if (index < 0 || index > arr.length) {
-    throw new RangeError("Index out of bounds");
-  }
-  const newArr = new Uint8Array(arr.length + 1);
+	if (index < 0 || index > arr.length) {
+		throw new RangeError("Index out of bounds");
+	}
+	const newArr = new Uint8Array(arr.length + 1);
 
-  newArr.set(arr.subarray(0, index), 0);
-  newArr[index] = element;
-  newArr.set(arr.subarray(index), index + 1);
+	newArr.set(arr.subarray(0, index), 0);
+	newArr[index] = element;
+	newArr.set(arr.subarray(index), index + 1);
 
-  return newArr;
+	return newArr;
 }
 
 function insertIntoUint16Array(
-  arr: Uint16Array,
-  index: number,
-  element: number,
+	arr: Uint16Array,
+	index: number,
+	element: number
 ): Uint16Array {
-  if (index < 0 || index > arr.length) {
-    throw new RangeError("Index out of bounds");
-  }
-  const newArr = new Uint16Array(arr.length + 1);
+	if (index < 0 || index > arr.length) {
+		throw new RangeError("Index out of bounds");
+	}
+	const newArr = new Uint16Array(arr.length + 1);
 
-  newArr.set(arr.subarray(0, index), 0);
-  newArr[index] = element;
-  newArr.set(arr.subarray(index), index + 1);
+	newArr.set(arr.subarray(0, index), 0);
+	newArr[index] = element;
+	newArr.set(arr.subarray(index), index + 1);
 
-  return newArr;
+	return newArr;
 }
 
 export class Genome {
-  private constructor(
-    public readonly path: Uint8Array,
-    public readonly ages: Uint16Array,
-  ) {}
+	private constructor(public readonly path: Uint8Array) {}
 
-  static createRandom(length: number): Genome {
-    return new Genome(
-      createRandomSnakePath(length),
-      new Uint16Array(length),
-    );
-  }
+	static createRandom(length: number): Genome {
+		return new Genome(createRandomSnakePath(length));
+	}
 
-  static createAndIncrementAges(path: Uint8Array, ages: Uint16Array): Genome {
-    return new Genome(
-      path,
-      ages.map((age) => age + 1),
-    );
-  }
+	getFitness(game: Game): number {
+		for (let i = 0; i < this.path.length; i++) {
+			const direction = this.path[i]! as Direction;
+			const prevDirection = i > 0 ? (this.path[i - 1] as Direction) : null;
+			if (
+				prevDirection !== null &&
+				getBackwardDirection(prevDirection) === direction
+			) {
+				return 0;
+			}
+			const isAlive = game.moveSnakeHead(direction);
+			if (!isAlive) return 0;
+		}
 
-  getFitness(game: Game): [number, number] {
-    let cellsTravelledUntilDied = 0;
+		const score = game.getScore();
+		if (score === game.food.length) {
+			// No food left, the snake has eaten all the food 🚀
+			return Math.pow(score, 2.5 + 1 / game.cellsTravelled);
+		}
 
-    for (const direction of this.path) {
-      cellsTravelledUntilDied++;
-      const isSnakeAlive = game.moveSnakeHead(direction);
-      if (!isSnakeAlive) return [0, cellsTravelledUntilDied];
-    }
+		const [_, distanceToClosestFood] = game.getClosestFood()!;
+		const fitness =
+			(distanceToClosestFood !== 0 ? 1 / sigmoid(distanceToClosestFood) : 0) +
+			score;
 
-    const score = game.getScore();
-    if (score === game.food.length) {
-      // No food left, the snake has eaten all the food 🚀
-      return [Infinity, cellsTravelledUntilDied];
-    }
+		return Math.pow(fitness, 2);
+	}
 
-    const [_, distanceToClosestFood] = game.getClosestFood()!;
-    const fitness =
-      (distanceToClosestFood !== 0 ? 1 / (distanceToClosestFood + 1) : 0) +
-      score;
+	static mutate(game: Game, genome: Genome): Genome {
+		const path = new Uint8Array(genome.path);
 
-    return [fitness, cellsTravelledUntilDied];
-  }
+		let lastEatenFoodMoveIndex = 0;
+		for (let i = 0; i < genome.path.length; i++) {
+			const direction = genome.path[i]! as Direction;
+			game.moveSnakeHead(direction);
+			for (const food of game.food) {
+				if (Vector2.equals(game.snake.head, food)) {
+					lastEatenFoodMoveIndex = i;
+				}
+			}
+		}
 
-  static mutate(genome: Genome): Genome {
-    // there will be 3 types of mutations
-    // 1. change a random direction in the path, but consider the ages array. highter age means that the direction is less likely to be changed
-    // 2. add a new direction to the path in a random position. The chance of adding a new direction should be higher if the path is shorter. The chance of adding a new direction around the elements with higher age should be lower
-    // 3. remove a direction from the path. The chance of removing a direction should be higher if the path is longer. The chance of removing a direction around the elements with higher age should be lower
+		let pathToMutate = path.slice(lastEatenFoodMoveIndex);
+		const totalWeight = pathToMutate.reduce(
+			(acc, _direction, index) => acc + index,
+			0
+		);
+		const probabilities = pathToMutate.map((_, index) => index / totalWeight);
 
-    let path = new Uint8Array(genome.path);
-    let ages = new Uint16Array(genome.ages);
+		if (Math.random() < 0.3) {
+			const index = choseRandomIndexByProbability(pathToMutate, probabilities);
+			const newDirection = getRandomDirection();
+			pathToMutate[index] = newDirection;
+		}
+		if (Math.random() < 0.8) {
+			const index = choseRandomIndexByProbability(pathToMutate, probabilities);
+			const newDirection = getRandomDirection();
+			pathToMutate = insertIntoUint8Array(pathToMutate, index, newDirection);
+		} else if (pathToMutate.length > 1 && Math.random() < 0.2) {
+			const index = choseRandomIndexByProbability(pathToMutate, probabilities);
+			pathToMutate.copyWithin(index, index + 1);
+			pathToMutate = pathToMutate.slice(0, path.length - 1);
+		}
 
-    const getWeightedRandomIndex = () => {
-      const totalWeight = ages.reduce(
-        (sum, age) => sum + (1 / age),
-        0,
-      );
-      let random = Math.random() * totalWeight;
+		const result = new Uint8Array(lastEatenFoodMoveIndex + pathToMutate.length);
+		result.set(path.slice(0, lastEatenFoodMoveIndex), 0);
+		result.set(pathToMutate, lastEatenFoodMoveIndex);
+		return new Genome(result);
+	}
 
-      for (let i = 0; i < ages.length; i++) {
-        random -= 1 / ages[i]!;
-        if (random <= 0) {
-          return i;
-        }
-      }
-      return ages.length - 1;
-    };
+	static zipCrossover(
+		parent1: readonly [Genome, number],
+		parent2: readonly [Genome, number]
+	): Genome {
+		const bestParent = parent1[1] > parent2[1] ? parent1[0] : parent2[0];
+		const secondaryParent = parent1[1] > parent2[1] ? parent2[0] : parent1[0];
 
-    if (Math.random() < 0.3) {
-      const index = getWeightedRandomIndex();
-      const newDirection = getRandomDirection();
-      path[index] = newDirection;
-    }
+		const path = new Uint8Array(bestParent.path);
+		for (let i = 1; i < path.length; i += 2) {
+			path[i] = secondaryParent.path[i]!;
+		}
 
-    // const probability = sigmoid(1 / path.length);
-    if (Math.random() < 0.8) {
-      const index = getWeightedRandomIndex();
-      const newDirection = getRandomDirection();
-      path = insertIntoUint8Array(path, index, newDirection);
-      ages = insertIntoUint16Array(ages, index, 0);
-    } else if (path.length > 1 && Math.random() < sigmoid(path.length)) {
-      const index = getWeightedRandomIndex();
-      path.copyWithin(index, index + 1);
-      path = path.slice(0, path.length - 1);
+		return new Genome(path);
+	}
 
-      ages.copyWithin(index, index + 1);
-      ages = ages.slice(0, ages.length - 1);
-    }
+	static crossover(
+		parent1: readonly [Genome, number],
+		parent2: readonly [Genome, number]
+	): Genome {
+		const bestParent = parent1[1] > parent2[1] ? parent1[0] : parent2[0];
+		const secondaryParent = parent1[1] > parent2[1] ? parent2[0] : parent1[0];
 
-    return new Genome(path, ages);
-  }
+		const path = new Uint8Array(bestParent.path);
+		for (let i = 0; i < path.length; i++) {
+			if (Math.random() < 0.3) {
+				path[i] = secondaryParent.path[i]!;
+			}
+		}
 
-  static crossover(
-    genome1: Genome,
-    genome2: Genome,
-    genome1Fitness: number,
-    genome2Fitness: number,
-  ): Genome {
-    // crossover should consider the ages array, which means the age of the gene. If the gene is older, it should be less likely to be crossed over.
-    // select the gene with the highest fitness to be the base genome
-    const [baseGenome, otherGenome] = genome1Fitness > genome2Fitness
-      ? [genome1, genome2]
-      : [genome2, genome1];
-
-    const path = new Uint8Array(baseGenome.path);
-
-    for (let i = 0; i < path.length; i++) {
-      if (Math.random() < 0.3) {
-        path[i] = otherGenome.path[i]!;
-      }
-    }
-
-    return Genome.createAndIncrementAges(
-      path,
-      new Uint16Array(baseGenome.ages),
-    );
-  }
+		return new Genome(path);
+	}
 }
 
-export function evolveGeneration(
-  game: Game,
-  generation: Genome[],
-): Genome[] {
-  const fitnesses = generation
-    .map((genome) => genome.getFitness(game.clone()));
+export function evolveGeneration(game: Game, generation: Genome[]): Genome[] {
+	const fitnesses = generation.map((genome) => genome.getFitness(game.clone()));
 
-  const positiveFitnesses = fitnesses
-    .map((fitness, index) => [index, fitness[0]] as const)
-    .filter(([_, fitness]) => fitness > 0)
-    .sort((a, b) => b[1] - a[1]);
+	const survivedGenomes = generation.filter(
+		(_, index) => fitnesses[index]! > 0
+	);
+	const positiveFitnesses = fitnesses.filter(
+		(_, index) => fitnesses[index]! > 0
+	);
 
-  const totalFitness = positiveFitnesses.reduce(
-    (total, [_, fitness]) => total + fitness,
-    0,
-  );
-  const probabilities = positiveFitnesses.map(([_, fitness]) =>
-    fitness / totalFitness
-  );
+	const selectedGenomes = survivedGenomes
+		.map((genome, index) => [genome, positiveFitnesses[index]!] as const)
+		.sort(([_a, fitnessA], [_b, fitnessB]) => {
+			return fitnessB - fitnessA;
+		})
+		.slice(0, Math.floor(generation.length / 4));
 
-  const genomesWithPositiveFitness = positiveFitnesses
-    .map(([index, fitness]) => [generation[index]!, fitness] as const);
+	const totalFitness = selectedGenomes.reduce(
+		(total, [_genome, fitness]) => total + fitness,
+		0
+	);
+	const probabilities = selectedGenomes.map(
+		(_genome, fitness) => fitness / totalFitness
+	);
 
-  const best25 = genomesWithPositiveFitness
-    .slice(0, Math.floor(generation.length / 4))
-    .map(([genome]) => genome);
+	const childrends = Array.from({ length: generation.length }, () => {
+		const parent1 =
+			selectedGenomes[
+				choseRandomIndexByProbability(selectedGenomes, probabilities)
+			]!;
+		const parent2 =
+			selectedGenomes[
+				choseRandomIndexByProbability(selectedGenomes, probabilities)
+			]!;
 
-  const newGeneration = Array.from(
-    { length: generation.length - best25.length },
-    () => {
-      const [genome1, genome1Fitness] = genomesWithPositiveFitness[
-        choseRandomIndexByProbability(genomesWithPositiveFitness, probabilities)
-      ]!;
-      const [genome2, genome2Fitness] = genomesWithPositiveFitness[
-        choseRandomIndexByProbability(genomesWithPositiveFitness, probabilities)
-      ]!;
-      return Genome.mutate(Genome.crossover(
-        genome1,
-        genome2,
-        genome1Fitness,
-        genome2Fitness,
-      ));
-    },
-  );
+		return Genome.mutate(game.clone(), Genome.crossover(parent1, parent2));
+	});
 
-  return [...best25, ...newGeneration];
+	return childrends;
 }

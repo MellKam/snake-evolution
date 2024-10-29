@@ -18,9 +18,11 @@ export class Vector2 {
   }
 }
 
-export function choseRandomIndexByProbability<T>(
-  values: Array<T> | ReadonlyArray<T>,
-  probabilities: number[],
+export function choseRandomIndexByProbability<
+  T extends Array<any> | Uint8Array,
+>(
+  values: T,
+  probabilities: Array<number> | Uint8Array,
 ): number {
   if (values.length !== probabilities.length) {
     throw new Error("Values and probabilities must be of the same length");

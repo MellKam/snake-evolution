@@ -12,7 +12,7 @@ const GRID_HEIGHT = 24;
 const App = () => {
   const [generationIndex, setGenerationIndex] = createSignal(0);
   const [generation, setGeneration] = createSignal(
-    Array.from({ length: 250 }, () => Genome.createRandom(2)),
+    Array.from({ length: 500 }, () => Genome.createRandom(2)),
   );
 
   const initialGame = Game.create(
@@ -28,7 +28,11 @@ const App = () => {
   const [game, setGame] = createSignal(initialGame.clone());
 
   const fitnesses = createMemo(() => {
-    return generation().map((genome) => genome.getFitness(initialGame.clone()));
+    return generation().map((genome) => {
+      const game = initialGame.clone();
+      const fitness = genome.getFitness(game);
+      return [fitness, game.cellsTravelled] as const;
+    });
   });
 
   const sortedGenomeIndexes = createMemo(() => {

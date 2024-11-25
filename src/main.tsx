@@ -1,15 +1,21 @@
 import { Game, generateRandomFoodCoordinates, Snake } from "./game.ts";
 import { render } from "solid-js/web";
-import { createEffect, createMemo, createSignal, For } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { Vector2 } from "./utils.ts";
 import "./main.css";
-import { evolveGeneration, Genome } from "./evolution.ts";
+import {
+  evolveGeneration,
+  GenerationStats,
+  Genome,
+  getGenerationStats,
+} from "./evolution.ts";
 import { Playback } from "./Playback.tsx";
 
 const GRID_WIDTH = 24;
 const GRID_HEIGHT = 24;
 
 const App = () => {
+  const [stats, setStats] = createSignal<GenerationStats[]>([]);
   const [generationIndex, setGenerationIndex] = createSignal(0);
   const [generation, setGeneration] = createSignal(
     Array.from({ length: 500 }, () => Genome.createRandom(2)),
@@ -49,6 +55,12 @@ const App = () => {
     sortedGenomeIndexes()[0] || 0,
   );
 
+  const bestGenomeFitness = createMemo(() => {
+    return generation()[sortedGenomeIndexes()[0]!]!.getFitness(
+      initialGame.clone(),
+    );
+  });
+
   const [currentMoveIndex, setCurrentMoveIndex] = createSignal(0);
   const [isAutoEvolutionEnabled, setAutoEvolution] = createSignal(false);
   let intervalId: number | undefined;
@@ -57,7 +69,7 @@ const App = () => {
     if (isAutoEvolutionEnabled()) {
       intervalId = setInterval(() => {
         handleEvolve();
-      }, 100);
+      }, 64);
     } else {
       clearInterval(intervalId);
     }
@@ -65,11 +77,20 @@ const App = () => {
 
   const handleEvolve = () => {
     setGenerationIndex((index) => index + 1);
-    setGeneration(evolveGeneration(initialGame, generation()));
+    const newGeneration = evolveGeneration(initialGame, generation());
+    setGeneration(newGeneration);
     const bestGenomeIndex = sortedGenomeIndexes()[0]!;
     setVisibleGenomIndex(bestGenomeIndex);
     const bestGenome = generation()[bestGenomeIndex]!;
     setCurrentMoveIndex(bestGenome.path.length - 1);
+
+    setStats((
+      stats,
+    ) => [...stats, getGenerationStats(initialGame.clone(), newGeneration)]);
+    if (bestGenome.getFitness(initialGame.clone()) === Infinity) {
+      clearInterval(intervalId);
+      setAutoEvolution(false);
+    }
   };
 
   return (
@@ -78,9 +99,34 @@ const App = () => {
         <div class="flex justify-between p-3 border-b border-stone-200">
           <h1 class="text-lg font-semibold">Generation {generationIndex()}</h1>
           <div class="flex gap-2">
+            <Show when={bestGenomeFitness() === Infinity}>
+              <button
+                class="bg-green-600 cursor-pointer rounded-md py-1 px-3 text-white active:bg-green-700"
+                onClick={() => {
+                  const csv = [
+                    "Generation,MaxFitness,SurvivedCount",
+                    ...stats().slice(0, stats().length - 1).map((stat, index) =>
+                      `${index},${stat.maxFitness.toFixed(5)},${
+                        stat.survivedCount.toFixed(5)
+                      }`
+                    ),
+                  ].join("\n");
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "generation_stats.csv";
+                  a.click();
+                }}
+              >
+                Download stats
+              </button>
+            </Show>
             <button
               onClick={handleEvolve}
-              class="bg-green-600 cursor-pointer rounded-md py-1 px-3 text-white active:bg-green-700"
+              disabled={isAutoEvolutionEnabled() ||
+                bestGenomeFitness() === Infinity}
+              class="bg-green-600 cursor-pointer rounded-md py-1 px-3 text-white active:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Evolve
             </button>

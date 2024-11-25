@@ -66,13 +66,13 @@ export class Genome {
 		const score = game.getScore();
 		if (score === game.food.length) {
 			// No food left, the snake has eaten all the food 🚀
-			return Math.pow(score, 2.5 + 1 / game.cellsTravelled);
+			return Infinity;
+			// return Math.pow(score, 2.5 + 1 / game.cellsTravelled);
 		}
 
 		const [_, distanceToClosestFood] = game.getClosestFood()!;
 		const fitness =
-			(distanceToClosestFood !== 0 ? 1 / sigmoid(distanceToClosestFood) : 0) +
-			score;
+			(distanceToClosestFood !== 0 ? 1 / distanceToClosestFood : 0) + score;
 
 		return Math.pow(fitness, 2);
 	}
@@ -191,4 +191,21 @@ export function evolveGeneration(game: Game, generation: Genome[]): Genome[] {
 	});
 
 	return childrends;
+}
+
+export interface GenerationStats {
+	survivedCount: number;
+	maxFitness: number;
+}
+
+export function getGenerationStats(
+	game: Game,
+	generation: Genome[]
+): GenerationStats {
+	const fitnesses = generation.map((genome) => genome.getFitness(game.clone()));
+
+	const survivedCount = fitnesses.filter((fitness) => fitness > 0).length;
+	const maxFitness = Math.max(...fitnesses);
+
+	return { survivedCount, maxFitness };
 }

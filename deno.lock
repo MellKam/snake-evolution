@@ -851,7 +851,6 @@
   "workspace": {
     "dependencies": [
       "npm:@tailwindcss/vite@next",
-      "npm:csstype@*",
       "npm:solid-js@1.9.2",
       "npm:tailwindcss@next",
       "npm:vite-plugin-solid@2.10.2",

@@ -104,9 +104,9 @@ const App = () => {
                 class="bg-green-600 cursor-pointer rounded-md py-1 px-3 text-white active:bg-green-700"
                 onClick={() => {
                   const csv = [
-                    "Generation,MaxFitness,SurvivedCount",
+                    "Generation,MaxFitness,MinFitness,SurvivedCount",
                     ...stats().slice(0, stats().length - 1).map((stat, index) =>
-                      `${index},${stat.maxFitness.toFixed(5)},${
+                      `${index},${stat.maxFitness.toFixed(5)},${stat.minFitness.toFixed(5)},${
                         stat.survivedCount.toFixed(5)
                       }`
                     ),
